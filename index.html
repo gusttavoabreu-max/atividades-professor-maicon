@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚜 AgroSim Brasil 2.0</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;}
+canvas{display:block;width:100vw;height:100vh;}
+
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;}
+
+#topbar{
+  position:absolute;top:0;left:0;right:0;
+  background:linear-gradient(to bottom,rgba(0,0,0,0.8),transparent);
+  padding:12px 20px 28px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+#game-title{font-size:17px;font-weight:700;color:#e8c84a;letter-spacing:3px;text-shadow:0 0 12px rgba(232,200,74,0.5);}
+#clock-bar{font-size:12px;color:#ccc;display:flex;gap:16px;align-items:center;}
+#clock-bar span{color:#e8c84a;font-weight:700;}
+
+#money-box{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.65);border:1px solid rgba(232,200,74,0.4);
+  border-radius:4px;padding:5px 18px;
+  font-size:15px;font-weight:700;color:#5fc95f;
+  text-shadow:0 0 8px rgba(95,201,95,0.4);
+}
+
+/* Panels */
+#panel-r{
+  position:absolute;bottom:18px;right:18px;
+  background:rgba(8,6,2,0.82);
+  border:1px solid rgba(232,200,74,0.3);
+  border-radius:8px;padding:14px 16px;min-width:190px;
+  backdrop-filter:blur(4px);
+}
+#panel-r h4{color:#e8c84a;font-size:9px;letter-spacing:3px;margin-bottom:10px;}
+.gr{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:12px;}
+.gr .l{color:#888;}
+.gr .v{color:#fff;font-weight:700;}
+.bar-wrap{width:100%;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;margin-bottom:6px;}
+.bar-fill{height:100%;border-radius:2px;transition:width .15s;}
+
+#panel-l{
+  position:absolute;bottom:18px;left:18px;
+  background:rgba(8,6,2,0.82);
+  border:1px solid rgba(95,201,95,0.3);
+  border-radius:8px;padding:14px 16px;min-width:200px;
+  backdrop-filter:blur(4px);
+}
+#panel-l h4{color:#5fc95f;font-size:9px;letter-spacing:3px;margin-bottom:10px;}
+
+#hint{
+  position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.1);
+  border-radius:5px;padding:7px 16px;
+  font-size:10px;color:#777;letter-spacing:1px;text-align:center;
+  max-width:500px;
+  backdrop-filter:blur(4px);
+}
+#hint b{color:#e8c84a;}
+
+#crosshair{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:14px;height:14px;border:1px solid rgba(255,255,255,0.35);border-radius:50%;
+}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(255,255,255,0.35);}
+#crosshair::before{width:1px;height:5px;left:50%;top:-6px;transform:translateX(-50%);}
+#crosshair::after{width:5px;height:1px;left:-6px;top:50%;transform:translateY(-50%);}
+
+#action-log{position:absolute;top:62px;right:18px;font-size:11px;text-align:right;max-width:220px;}
+.log-e{background:rgba(0,0,0,0.6);padding:3px 9px;border-radius:3px;margin-bottom:3px;
+  border-left:2px solid #e8c84a;animation:lf 4s forwards;}
+@keyframes lf{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
+
+/* Interact prompt */
+#interact-prompt{
+  position:absolute;top:55%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(0,0,0,0.75);border:1px solid rgba(232,200,74,0.5);
+  border-radius:6px;padding:8px 20px;font-size:13px;color:#e8c84a;
+  letter-spacing:1px;display:none;
+  backdrop-filter:blur(4px);
+}
+
+/* Loading */
+#loading{
+  position:fixed;inset:0;background:#060402;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:100;transition:opacity 1s ease;
+}
+#loading h1{font-size:clamp(30px,5vw,58px);color:#e8c84a;letter-spacing:6px;
+  text-shadow:0 0 40px rgba(232,200,74,0.4);margin-bottom:4px;}
+#loading p{color:#555;letter-spacing:3px;font-size:11px;margin-bottom:36px;}
+#lb-wrap{width:280px;height:2px;background:rgba(255,255,255,0.08);border-radius:1px;overflow:hidden;}
+#lb{height:100%;background:linear-gradient(to right,#2d8c2d,#e8c84a);width:0%;transition:width .3s;border-radius:1px;}
+#lt{margin-top:10px;font-size:10px;color:#444;letter-spacing:2px;}
+
+/* Vehicle selection indicator */
+#vehicle-indicator{
+  position:absolute;top:55px;left:50%;transform:translateX(-50%);
+  font-size:10px;color:#aaa;letter-spacing:2px;text-align:center;
+}
+#vehicle-indicator b{color:#e8c84a;}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <h1>🚜 AGROSIM</h1>
+  <p>BRASIL · SIMULADOR DE FAZENDA 3D</p>
+  <div id="lb-wrap"><div id="lb"></div></div>
+  <div id="lt">Gerando mundo...</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="hud">
+  <div id="topbar">
+    <div id="game-title">🚜 AGROSIM BRASIL 2.0</div>
+    <div id="clock-bar">
+      <span id="h-time">06:00</span>
+      <span id="h-weather">☀️ Sol</span>
+      <span id="h-season">🌱 Primavera</span>
+    </div>
+  </div>
+
+  <div id="money-box">💰 R$ <span id="h-money">25.000</span></div>
+  <div id="vehicle-indicator">Personagem a pé &nbsp;|&nbsp; <b>E</b> para entrar nos veículos</div>
+  <div id="crosshair"></div>
+  <div id="interact-prompt">🔑 Pressione <b>[E]</b> para entrar</div>
+
+  <div id="panel-l">
+    <h4>📊 FAZENDA</h4>
+    <div class="gr"><span class="l">Modo</span><span class="v" id="i-mode">A Pé</span></div>
+    <div class="gr"><span class="l">Veículo</span><span class="v" id="i-veh">—</span></div>
+    <div class="gr"><span class="l">Implemento</span><span class="v" id="i-impl">—</span></div>
+    <div class="gr"><span class="l">Campo ativo</span><span class="v" id="i-field">Campo 1</span></div>
+    <div class="gr"><span class="l">Cultura</span><span class="v" id="i-crop">Soja 🌿</span></div>
+    <div class="gr"><span class="l">Progresso</span><span class="v" id="i-prog">100%</span></div>
+  </div>
+
+  <div id="panel-r">
+    <h4>⚙️ VEÍCULO</h4>
+    <div class="gr"><span class="l">Velocidade</span><span class="v"><span id="h-spd">0</span> km/h</span></div>
+    <div class="bar-wrap"><div class="bar-fill" id="b-spd" style="width:0%;background:#e8c84a;"></div></div>
+    <div class="gr"><span class="l">Motor</span><span class="v"><span id="h-rpm">—</span></span></div>
+    <div class="bar-wrap"><div class="bar-fill" id="b-rpm" style="width:0%;background:#e05050;"></div></div>
+    <div class="gr"><span class="l">Combustível</span><span class="v"><span id="h-fuel">—</span></span></div>
+    <div class="bar-wrap"><div class="bar-fill" id="b-fuel" style="width:100%;background:#3498db;"></div></div>
+    <div class="gr"><span class="l">Marcha</span><span class="v" id="h-gear">—</span></div>
+    <div class="gr"><span class="l">Motor</span><span class="v" id="h-engine">Desligado</span></div>
+  </div>
+
+  <div id="hint">
+    <b>WASD</b> Mover &nbsp;|&nbsp; <b>E</b> Entrar/Sair &nbsp;|&nbsp; <b>F</b> Câmera &nbsp;|&nbsp;
+    <b>ESPAÇO</b> Ação &nbsp;|&nbsp; <b>R</b> Ligar Motor &nbsp;|&nbsp; <b>Click</b> Travar Mouse
+  </div>
+
+  <div id="action-log"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ════════════════════════════════════════════
+//  AGROSIM BRASIL 2.0
+// ════════════════════════════════════════════
+
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.0045);
+
+const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.1, 1000);
+
+// ── NOISE ───────────────────────────────────
+function hash(n){ return Math.sin(n*127.1)*43758.5453%1; }
+function noise(x,z){
+  const ix=Math.floor(x), iz=Math.floor(z);
+  const fx=x-ix, fz=z-iz;
+  const ux=fx*fx*(3-2*fx), uz=fz*fz*(3-2*fz);
+  return (hash(ix+iz*57)*(1-ux)+hash(ix+1+iz*57)*ux)*(1-uz)+
+         (hash(ix+(iz+1)*57)*(1-ux)+hash(ix+1+(iz+1)*57)*ux)*uz;
+}
+function fbm(x,z,oct=4){
+  let v=0,a=0.5,f=1,m=0;
+  for(let i=0;i<oct;i++){v+=noise(x*f,z*f)*a;m+=a;a*=0.5;f*=2.1;}
+  return v/m;
+}
+function getY(x,z){
+  const r=Math.sqrt(x*x+z*z);
+  const flat=Math.max(0,1-r/28);
+  const h=fbm(x*0.04,z*0.04)*12 - 4;
+  return h*(1-flat)*Math.min(1,(r-20)/30);
+}
+
+// ── TERRAIN ──────────────────────────────────
+const tGeo = new THREE.PlaneGeometry(500,500,160,160);
+tGeo.rotateX(-Math.PI/2);
+const tPos = tGeo.attributes.position;
+for(let i=0;i<tPos.count;i++)
+  tPos.setY(i, getY(tPos.getX(i), tPos.getZ(i)));
+tGeo.computeVertexNormals();
+
+// Vertex colors for terrain
+const colors=[];
+for(let i=0;i<tPos.count;i++){
+  const y=tPos.getY(i), x=tPos.getX(i), z=tPos.getZ(i);
+  const r=Math.sqrt(x*x+z*z);
+  let c;
+  if(r<30) c=new THREE.Color(0x3d7a2a);
+  else if(y<-1) c=new THREE.Color(0x2a5a1a);
+  else if(y<2) c=new THREE.Color(0x4a7c2f);
+  else if(y<5) c=new THREE.Color(0x5a6040);
+  else c=new THREE.Color(0x888070);
+  colors.push(c.r,c.g,c.b);
+}
+tGeo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+const tMat = new THREE.MeshLambertMaterial({vertexColors:true});
+const terrain = new THREE.Mesh(tGeo,tMat);
+terrain.receiveShadow=true;
+scene.add(terrain);
+
+// Dirt road
+function addPlane(x,z,w,d,color,ry=0,py=0.04){
+  const g=new THREE.PlaneGeometry(w,d);g.rotateX(-Math.PI/2);
+  const m=new THREE.MeshLambertMaterial({color});
+  const mesh=new THREE.Mesh(g,m);
+  mesh.position.set(x,py,z);mesh.rotation.y=ry;
+  mesh.receiveShadow=true;scene.add(mesh);return mesh;
+}
+addPlane(0,0,5,300,0x7a5a20); // main road N-S
+addPlane(0,-20,200,5,0x7a5a20,Math.PI/2); // cross road
+
+// Fields
+const fieldDefs=[
+  {x:-22,z:5, w:32,d:55, color:0x2d6b1a, crop:'Soja',phase:'Plantado',pct:100},
+  {x:22, z:10,w:32,d:45, color:0x6b4a15, crop:'Milho',phase:'Colhível',pct:100},
+  {x:-22,z:-42,w:32,d:32,color:0xcfad4a, crop:'Trigo',phase:'Colhível',pct:95},
+  {x:22, z:-38,w:32,d:42,color:0x2a5e15, crop:'Cana',phase:'Crescendo',pct:60},
+];
+fieldDefs.forEach(f=>addPlane(f.x,f.z,f.w,f.d,f.color));
+
+// ── CROP INSTANCES ────────────────────────────
+function makeCrops(cx,cz,fw,fd,color,h,rows,cols){
+  const geo=new THREE.CylinderGeometry(0.025,0.05,h,4);
+  const mat=new THREE.MeshLambertMaterial({color});
+  const mesh=new THREE.InstancedMesh(geo,mat,rows*cols);
+  mesh.castShadow=true;
+  const dummy=new THREE.Object3D();let idx=0;
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const px=cx-fw/2+0.5+c*(fw/cols)+(Math.random()-.5)*0.2;
+    const pz=cz-fd/2+0.5+r*(fd/rows)+(Math.random()-.5)*0.2;
+    dummy.position.set(px,getY(px,pz)+h/2,pz);
+    dummy.rotation.y=Math.random()*Math.PI;
+    dummy.scale.setScalar(0.85+Math.random()*0.3);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(idx++,dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate=true;
+  scene.add(mesh);return mesh;
+}
+const cropMeshes=[
+  makeCrops(-22,5,30,53,0x3aaa40,0.65,26,18),  // soy
+  makeCrops(22,10,30,43,0x2c7d30,1.9,20,14),   // corn tall
+  makeCrops(-22,-42,30,30,0xd4b030,1.1,16,14), // wheat
+  makeCrops(22,-38,30,40,0x1e6b10,2.2,14,8),   // cane
+];
+
+// ── TREES ────────────────────────────────────
+const treeGroup=new THREE.Group();scene.add(treeGroup);
+function makeTree(x,z,s=1){
+  const g=new THREE.Group();
+  const tG=new THREE.CylinderGeometry(0.12*s,0.2*s,1.8*s,6);
+  const tM=new THREE.MeshLambertMaterial({color:0x4a2e10});
+  const t=new THREE.Mesh(tG,tM);t.castShadow=true;t.position.y=0.9*s;g.add(t);
+  const colors2=[0x2d6b1a,0x357a20,0x266015];
+  for(let i=0;i<3;i++){
+    const lG=new THREE.SphereGeometry((0.9+i*0.15)*s,7,5);
+    const lM=new THREE.MeshLambertMaterial({color:colors2[i]});
+    const l=new THREE.Mesh(lG,lM);
+    l.castShadow=true;
+    l.position.set((Math.random()-.5)*0.4*s,(1.8+i*0.6)*s,(Math.random()-.5)*0.4*s);
+    g.add(l);
+  }
+  g.position.set(x,getY(x,z),z);
+  treeGroup.add(g);
+}
+for(let i=0;i<80;i++){
+  const a=(i/80)*Math.PI*2, r=90+Math.random()*50;
+  makeTree(Math.cos(a)*r,Math.sin(a)*r,0.7+Math.random()*0.9);
+}
+for(let i=0;i<14;i++) makeTree(-48,-60+i*9,0.8);
+for(let i=0;i<14;i++) makeTree(48,-60+i*9,0.8);
+
+// ── BUILDINGS ─────────────────────────────────
+
+// BARN
+function buildBarn(x,z){
+  const g=new THREE.Group();
+  // Foundation
+  const fG=new THREE.BoxGeometry(16,0.3,9);
+  const fM=new THREE.MeshLambertMaterial({color:0x888070});
+  const f=new THREE.Mesh(fG,fM);f.position.y=0.15;f.receiveShadow=true;g.add(f);
+  // Body
+  const bG=new THREE.BoxGeometry(15,5.5,8);
+  const bM=new THREE.MeshLambertMaterial({color:0x9b2424});
+  const b=new THREE.Mesh(bG,bM);b.castShadow=b.receiveShadow=true;b.position.y=3.05;g.add(b);
+  // White trim strips
+  const tG=new THREE.BoxGeometry(15.1,0.25,8.1);
+  const tM=new THREE.MeshLambertMaterial({color:0xffffff});
+  [1,2,5.4].forEach(y=>{const t=new THREE.Mesh(tG,tM);t.position.y=y;g.add(t);});
+  // Roof
+  const roof=makeRoofPrism(16,4,9.2,0x4a2a10);roof.position.y=5.8;g.add(roof);
+  // Doors (double)
+  const dG=new THREE.BoxGeometry(3,4.5,0.15);
+  const dM=new THREE.MeshLambertMaterial({color:0x3a1a08});
+  [-1.6,1.6].forEach(ox=>{const d=new THREE.Mesh(dG,dM);d.position.set(ox,2.55,4.08);g.add(d);});
+  // Door X bracing
+  const xM=new THREE.MeshLambertMaterial({color:0xc8a020});
+  const x1G=new THREE.BoxGeometry(0.08,5,0.1);
+  const xb=new THREE.Mesh(x1G,xM);xb.position.set(0,2.5,4.1);xb.rotation.z=Math.PI/6;g.add(xb);
+  // Windows
+  const wG=new THREE.BoxGeometry(1.2,0.8,0.15);
+  const wM=new THREE.MeshLambertMaterial({color:0xc8e8ff,transparent:true,opacity:0.6});
+  [-4,-1.5,1.5,4].forEach(wx=>{
+    const w=new THREE.Mesh(wG,wM);w.position.set(wx,4.2,4.08);g.add(w);
+  });
+  g.position.set(x,0,z);scene.add(g);return g;
+}
+
+function makeRoofPrism(lx,ry,lz,color){
+  const shape=new THREE.Shape();
+  shape.moveTo(-lx/2,0);shape.lineTo(0,ry);shape.lineTo(lx/2,0);shape.closePath();
+  const ext={depth:lz,bevelEnabled:false};
+  const g=new THREE.ExtrudeGeometry(shape,ext);
+  const m=new THREE.MeshLambertMaterial({color});
+  const mesh=new THREE.Mesh(g,m);
+  mesh.castShadow=true;mesh.position.z=-lz/2;return mesh;
+}
+
+// SILO
+function buildSilo(x,z,h=14){
+  const g=new THREE.Group();
+  const cG=new THREE.CylinderGeometry(2.2,2.4,h,18);
+  const cM=new THREE.MeshLambertMaterial({color:0xd4c878});
+  const c=new THREE.Mesh(cG,cM);c.castShadow=true;c.position.y=h/2;g.add(c);
+  // Rings
+  const rM=new THREE.MeshLambertMaterial({color:0x888860});
+  for(let i=1;i<h/2;i++){
+    const rG=new THREE.TorusGeometry(2.35,0.06,6,20);
+    const r=new THREE.Mesh(rG,rM);r.position.y=i*2;r.rotation.x=Math.PI/2;g.add(r);
+  }
+  const topG=new THREE.ConeGeometry(2.5,3,18);
+  const topM=new THREE.MeshLambertMaterial({color:0x6a6a5a});
+  const top=new THREE.Mesh(topG,topM);top.position.y=h+1.5;top.castShadow=true;g.add(top);
+  g.position.set(x,0,z);scene.add(g);
+}
+
+// WORKSHOP / GALPÃO
+function buildWorkshop(x,z){
+  const g=new THREE.Group();
+  const bG=new THREE.BoxGeometry(22,6,14);
+  const bM=new THREE.MeshLambertMaterial({color:0x607878});
+  const b=new THREE.Mesh(bG,bM);b.castShadow=b.receiveShadow=true;b.position.y=3;g.add(b);
+  const roof=makeRoofPrism(22.5,3,14.5,0x405060);roof.position.set(-11.25,6,-7.25);g.add(roof);
+  // Big door
+  const dG=new THREE.BoxGeometry(6,5.5,0.2);
+  const dM=new THREE.MeshLambertMaterial({color:0x354555});
+  const d=new THREE.Mesh(dG,dM);d.position.set(0,2.8,7.1);g.add(d);
+  // Panel lines on door
+  const pM=new THREE.MeshLambertMaterial({color:0x607880});
+  [1,2,3,4].forEach(i=>{const pG=new THREE.BoxGeometry(6.1,0.1,0.15);
+    const p=new THREE.Mesh(pG,pM);p.position.set(0,i*1.2,7.2);g.add(p);});
+  g.position.set(x,0,z);scene.add(g);
+}
+
+buildBarn(-2,-68);
+buildSilo(14,-72,14);buildSilo(19,-72,12);buildSilo(10,-72,10);
+buildWorkshop(-18,-70);
+
+// Fences
+function fence(x1,z1,x2,z2){
+  const len=Math.sqrt((x2-x1)**2+(z2-z1)**2);
+  const ang=Math.atan2(z2-z1,x2-x1);
+  const n=Math.max(2,Math.floor(len/3.5));
+  const pM=new THREE.MeshLambertMaterial({color:0x5d3a1a});
+  const rM=new THREE.MeshLambertMaterial({color:0x7a5030});
+  for(let i=0;i<=n;i++){
+    const t=i/n;
+    const px=x1+(x2-x1)*t,pz=z1+(z2-z1)*t;
+    const pG=new THREE.CylinderGeometry(0.055,0.055,1.5,5);
+    const p=new THREE.Mesh(pG,pM);p.position.set(px,0.75,pz);scene.add(p);
+  }
+  for(let r=0;r<2;r++){
+    const rG=new THREE.BoxGeometry(len,0.06,0.07);
+    const rail=new THREE.Mesh(rG,rM);
+    rail.position.set((x1+x2)/2,(0.5+r*0.6),(z1+z2)/2);
+    rail.rotation.y=ang;scene.add(rail);
+  }
+}
+fence(-40,-28,-40,28);fence(-7,-28,-7,28);fence(-40,-28,-7,-28);fence(-40,28,-7,28);
+fence(7,-22,38,-22);fence(7,28,38,28);fence(7,-22,7,28);fence(38,-22,38,28);
+
+// River
+const rvG=new THREE.PlaneGeometry(7,300,1,1);rvG.rotateX(-Math.PI/2);
+const rvM=new THREE.MeshLambertMaterial({color:0x1a5a8a,transparent:true,opacity:0.75});
+const river=new THREE.Mesh(rvG,rvM);river.position.set(65,0.2,0);scene.add(river);
+
+// ── TRACTOR BUILD ─────────────────────────────
+function buildTractor3D(){
+  const G=new THREE.Group();G.name='tractor';
+  const jdGreen=0x1a7a1a, jdYellow=0xd4b020, dark=0x1a1a1a;
+  const M=c=>new THREE.MeshLambertMaterial({color:c});
+
+  // Chassis
+  const chG=new THREE.BoxGeometry(2.3,0.8,4.0);
+  const ch=new THREE.Mesh(chG,M(0x1a5a1a));ch.castShadow=true;ch.position.y=1.1;G.add(ch);
+
+  // Engine hood - tapered
+  const ehG=new THREE.BoxGeometry(1.7,0.9,2.1);
+  const eh=new THREE.Mesh(ehG,M(jdGreen));eh.castShadow=true;eh.position.set(0,1.7,-1.1);G.add(eh);
+  // hood top panel
+  const htG=new THREE.BoxGeometry(1.5,0.15,2.0);
+  const ht=new THREE.Mesh(htG,M(0x156615));ht.position.set(0,2.2,-1.1);G.add(ht);
+  // grill
+  const grG=new THREE.BoxGeometry(1.6,0.7,0.12);
+  const gr=new THREE.Mesh(grG,M(0x333333));gr.position.set(0,1.7,-2.18);G.add(gr);
+  for(let i=0;i<5;i++){const slG=new THREE.BoxGeometry(1.5,0.06,0.05);
+    const sl=new THREE.Mesh(slG,M(0x666));sl.position.set(0,1.4+i*0.12,-2.17);G.add(sl);}
+  // headlights
+  const hlM=new THREE.MeshLambertMaterial({color:0xffffa0,emissive:0xffff60,emissiveIntensity:0.8});
+  [-0.65,0.65].forEach(x=>{const hlG=new THREE.BoxGeometry(0.28,0.18,0.1);
+    const hl=new THREE.Mesh(hlG,hlM);hl.position.set(x,1.72,-2.2);G.add(hl);});
+
+  // Cabin
+  const cabG=new THREE.BoxGeometry(2.05,1.6,1.9);
+  const cab=new THREE.Mesh(cabG,M(jdGreen));cab.castShadow=true;cab.position.set(0,2.55,0.65);G.add(cab);
+  // glass panels
+  const glM=new THREE.MeshLambertMaterial({color:0xaad8f8,transparent:true,opacity:0.45});
+  const glassData=[
+    {sz:[1.75,1.1,0.05],pos:[0,2.5,-0.3]},
+    {sz:[1.75,1.1,0.05],pos:[0,2.5,1.6]},
+    {sz:[0.05,1.1,1.6], pos:[-1.03,2.5,0.65]},
+    {sz:[0.05,1.1,1.6], pos:[1.03,2.5,0.65]},
+    {sz:[1.75,0.05,1.6], pos:[0,3.35,0.65]},
+  ];
+  glassData.forEach(d=>{const g2=new THREE.BoxGeometry(...d.sz);
+    const gl=new THREE.Mesh(g2,glM);gl.position.set(...d.pos);G.add(gl);});
+  // Cabin pillars
+  const pilM=M(jdGreen);
+  [[-1.02,-0.32],[1.02,-0.32],[-1.02,1.6],[1.02,1.6]].forEach(([px,pz])=>{
+    const pG=new THREE.BoxGeometry(0.1,1.65,0.1);
+    const p=new THREE.Mesh(pG,pilM);p.position.set(px,2.55,pz);G.add(p);});
+
+  // Exhaust pipe
+  const epG=new THREE.CylinderGeometry(0.07,0.07,1.6,8);
+  const ep=new THREE.Mesh(epG,M(0x333));ep.position.set(0.7,2.9,-1.8);G.add(ep);
+  const ecG=new THREE.CylinderGeometry(0.12,0.07,0.2,8);
+  const ec=new THREE.Mesh(ecG,M(0x222));ec.position.set(0.7,3.72,-1.8);G.add(ec);
+
+  // Wheels
+  function wheel(x,z,R,W,isFront){
+    const wG=new THREE.CylinderGeometry(R,R,W,20);
+    const wM=new THREE.MeshLambertMaterial({color:0x1a1a1a});
+    const wh=new THREE.Mesh(wG,wM);wh.castShadow=true;
+    wh.rotation.z=Math.PI/2;wh.position.set(x,R,z);G.add(wh);
+    // Rim
+    const rG=new THREE.CylinderGeometry(R*0.52,R*0.52,W+0.06,16);
+    const rM=new THREE.MeshLambertMaterial({color:jdYellow});
+    const rim=new THREE.Mesh(rG,rM);rim.rotation.z=Math.PI/2;rim.position.set(x,R,z);G.add(rim);
+    // Hub
+    const hG=new THREE.CylinderGeometry(R*0.2,R*0.2,W+0.08,8);
+    const hM=new THREE.MeshLambertMaterial({color:0x888});
+    const hub=new THREE.Mesh(hG,hM);hub.rotation.z=Math.PI/2;hub.position.set(x,R,z);G.add(hub);
+    // Tread marks
+    for(let t=0;t<16;t++){
+      const tG2=new THREE.BoxGeometry(W+0.1,R*0.12,0.06);
+      const td=new THREE.Mesh(tG2,new THREE.MeshLambertMaterial({color:0x111}));
+      const a=t/16*Math.PI*2;
+      td.position.set(x,R+Math.sin(a)*R*0.88,z+Math.cos(a)*R*0.88);
+      td.rotation.set(a,Math.PI/2,0);G.add(td);
+    }
+  }
+  wheel(-1.2,-1.4,0.52,0.38,true);
+  wheel( 1.2,-1.4,0.52,0.38,true);
+  wheel(-1.55,1.3,0.88,0.55,false);
+  wheel( 1.55,1.3,0.88,0.55,false);
+
+  // Axles
+  const axM=M(0x555);
+  [-1.4,1.3].forEach((z,i)=>{
+    const r=i===0?0.52:0.88;
+    const aG=new THREE.CylinderGeometry(0.06,0.06,i===0?2.6:3.2,6);
+    aG.rotateZ(Math.PI/2);const ax=new THREE.Mesh(aG,axM);ax.position.set(0,r,z);G.add(ax);});
+
+  // 3-point hitch
+  const hitchG=new THREE.BoxGeometry(0.08,0.08,0.9);
+  const hitchM=M(0x666);
+  [-0.5,0.5].forEach(x=>{const h=new THREE.Mesh(hitchG,hitchM);h.position.set(x,0.6,2.5);G.add(h);});
+  const topLinkG=new THREE.BoxGeometry(0.08,0.08,0.7);
+  const tl=new THREE.Mesh(topLinkG,hitchM);tl.position.set(0,1.1,2.4);G.add(tl);
+
+  // ROPS bar
+  const ropsM=M(0x333);
+  [-1,1].forEach(x=>{const rG=new THREE.BoxGeometry(0.08,1.7,0.08);
+    const r=new THREE.Mesh(rG,ropsM);r.position.set(x,3.4,0.65);G.add(r);});
+  const rtG=new THREE.BoxGeometry(2.1,0.08,0.08);
+  const rt=new THREE.Mesh(rtG,ropsM);rt.position.set(0,4.27,0.65);G.add(rt);
+
+  // Yellow stripe
+  const strG=new THREE.BoxGeometry(2.32,0.12,3.8);
+  const str=new THREE.Mesh(strG,M(jdYellow));str.position.set(0,0.72,-0.1);G.add(str);
+  // John Deere deer logo area (just a panel)
+  const logoG=new THREE.BoxGeometry(0.6,0.4,0.05);
+  const logo=new THREE.Mesh(logoG,M(jdYellow));logo.position.set(-0.0,1.9,-2.21);G.add(logo);
+
+  scene.add(G);return G;
+}
+
+// ── HARVESTER BUILD ───────────────────────────
+function buildHarvester3D(){
+  const G=new THREE.Group();G.name='harvester';
+  const nhRed=0xc0251a, nhYellow=0xe8c820, dark=0x222;
+  const M=c=>new THREE.MeshLambertMaterial({color:c});
+
+  // Main body - large box
+  const bodyG=new THREE.BoxGeometry(4.5,3.2,6.5);
+  const body=new THREE.Mesh(bodyG,M(nhRed));body.castShadow=true;body.position.set(0,2.8,0);G.add(body);
+
+  // Cab on top-front
+  const cabG=new THREE.BoxGeometry(3.8,2.0,3.0);
+  const cab=new THREE.Mesh(cabG,M(nhRed));cab.castShadow=true;cab.position.set(0,4.4,-2.0);G.add(cab);
+  // Glass
+  const glM=new THREE.MeshLambertMaterial({color:0xa0d8f8,transparent:true,opacity:0.5});
+  const frontGlG=new THREE.BoxGeometry(3.4,1.5,0.08);
+  const fg2=new THREE.Mesh(frontGlG,glM);fg2.position.set(0,4.2,-3.55);G.add(fg2);
+  const sideGlG=new THREE.BoxGeometry(0.08,1.5,2.8);
+  [-1.9,1.9].forEach(x=>{const s=new THREE.Mesh(sideGlG,glM);s.position.set(x,4.2,-2.0);G.add(s);});
+
+  // Grain tank
+  const tankG=new THREE.BoxGeometry(3.8,2.8,3.5);
+  const tank=new THREE.Mesh(tankG,M(nhRed));tank.castShadow=true;tank.position.set(0,3.6,2.0);G.add(tank);
+  // Tank cover
+  const tcG=new THREE.BoxGeometry(4.0,0.2,3.7);
+  const tc=new THREE.Mesh(tcG,M(0xaa2015));tc.position.set(0,5.1,2.0);G.add(tc);
+
+  // Unloading auger arm
+  const augG=new THREE.CylinderGeometry(0.18,0.18,7,8);augG.rotateZ(Math.PI/2);
+  const aug=new THREE.Mesh(augG,M(nhYellow));aug.position.set(5.0,5.5,1.5);G.add(aug);
+  const aug2G=new THREE.CylinderGeometry(0.18,0.18,4,8);aug2G.rotateX(Math.PI/4);
+  const aug2=new THREE.Mesh(aug2G,M(nhYellow));aug2.position.set(1.7,4.0,1.5);G.add(aug2);
+
+  // Header / Reel (front cutting part)
+  const hdrG=new THREE.BoxGeometry(6.5,0.7,1.8);
+  const hdr=new THREE.Mesh(hdrG,M(nhYellow));hdr.castShadow=true;hdr.position.set(0,0.8,-4.5);G.add(hdr);
+  // Reel cylinder
+  const reelG=new THREE.CylinderGeometry(0.55,0.55,6.3,12);reelG.rotateZ(Math.PI/2);
+  const reel=new THREE.Mesh(reelG,M(0xaaa020));reel.position.set(0,1.4,-4.2);G.add(reel);
+  // Cutter bar
+  const cutG=new THREE.BoxGeometry(6.8,0.15,0.3);
+  const cut=new THREE.Mesh(cutG,M(0x888));cut.position.set(0,0.45,-5.35);G.add(cut);
+  // Header dividers
+  for(let i=-2;i<=2;i++){const dG=new THREE.BoxGeometry(0.12,0.5,1.5);
+    const d=new THREE.Mesh(dG,M(nhYellow));d.position.set(i*1.3,0.5,-4.5);G.add(d);}
+
+  // Header lift arms
+  [-1.5,1.5].forEach(x=>{const aG=new THREE.BoxGeometry(0.12,0.12,2.5);
+    const a=new THREE.Mesh(aG,M(0x666));a.position.set(x,1.5,-3.3);G.add(a);});
+
+  // Big rear wheels
+  function bigWheel(x,z,R=1.2,W=0.7){
+    const wG=new THREE.CylinderGeometry(R,R,W,20);wG.rotateZ(Math.PI/2);
+    const wh=new THREE.Mesh(wG,M(dark));wh.castShadow=true;wh.position.set(x,R,z);G.add(wh);
+    const rG=new THREE.CylinderGeometry(R*0.45,R*0.45,W+0.05,16);rG.rotateZ(Math.PI/2);
+    const rim=new THREE.Mesh(rG,M(nhYellow));rim.position.set(x,R,z);G.add(rim);
+    for(let t=0;t<18;t++){const tG=new THREE.BoxGeometry(W+0.1,R*0.14,0.07);
+      const a=t/18*Math.PI*2;const td=new THREE.Mesh(tG,M(0x111));
+      td.position.set(x,R+Math.sin(a)*R*0.86,z+Math.cos(a)*R*0.86);td.rotation.set(a,Math.PI/2,0);G.add(td);}
+  }
+  // Small front wheels
+  function smallWheel(x,z,R=0.7,W=0.45){
+    const wG=new THREE.CylinderGeometry(R,R,W,14);wG.rotateZ(Math.PI/2);
+    const wh=new THREE.Mesh(wG,M(dark));wh.castShadow=true;wh.position.set(x,R,z);G.add(wh);
+    const rG=new THREE.CylinderGeometry(R*0.4,R*0.4,W+0.04,12);rG.rotateZ(Math.PI/2);
+    const rim=new THREE.Mesh(rG,M(nhRed));rim.position.set(x,R,z);G.add(rim);
+  }
+  bigWheel(-2.3,2.2);bigWheel(2.3,2.2);
+  smallWheel(-1.5,-2.8,0.65,0.4);smallWheel(1.5,-2.8,0.65,0.4);
+
+  // Tracks / tread bars
+  const tbarM=M(0x555);
+  for(let i=0;i<12;i++){const tG=new THREE.BoxGeometry(4.8,0.12,0.12);
+    const tb=new THREE.Mesh(tG,tbarM);const a=i/12*Math.PI*2;
+    tb.position.set(0,1.2+Math.sin(a)*1.2,2.2+Math.cos(a)*1.2);tb.rotation.x=a;G.add(tb);}
+
+  // Exhaust
+  const exG=new THREE.CylinderGeometry(0.1,0.1,2.5,8);
+  const ex=new THREE.Mesh(exG,M(0x333));ex.position.set(-1.5,5.8,-1.5);G.add(ex);
+  // NH logo area
+  const nhG=new THREE.BoxGeometry(1.0,0.5,0.06);
+  const nh=new THREE.Mesh(nhG,M(0x1a3aaa));nh.position.set(0,4.3,-4.0);G.add(nh);
+
+  // Yellow stripe
+  const stG=new THREE.BoxGeometry(4.6,0.15,6.6);
+  const st=new THREE.Mesh(stG,M(nhYellow));st.position.set(0,1.45,0);G.add(st);
+
+  // Ladder on side
+  for(let i=0;i<4;i++){const rG=new THREE.BoxGeometry(0.05,0.05,0.6);rG.rotateX(Math.PI/2);
+    const r=new THREE.Mesh(rG,M(0x888));r.position.set(-2.3,0.8+i*0.7,0.5);G.add(r);}
+  const lgG=new THREE.BoxGeometry(0.05,3,0.05);
+  [-2.55,-2.05].forEach(x=>{const l=new THREE.Mesh(lgG,M(0x888));l.position.set(x,1.5,0.5);G.add(l);});
+
+  // Working lights
+  const wlM=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:0.6});
+  [-2.5,-1.5,1.5,2.5].forEach(x=>{const wlG=new THREE.SphereGeometry(0.12,6,6);
+    const wl=new THREE.Mesh(wlG,wlM);wl.position.set(x,1.2,-5.3);G.add(wl);});
+
+  scene.add(G);return G;
+}
+
+// ── PLAYER CHARACTER ──────────────────────────
+function buildPlayer(){
+  const G=new THREE.Group();G.name='player';
+  const M=c=>new THREE.MeshLambertMaterial({color:c});
+  // Body
+  const bG=new THREE.BoxGeometry(0.45,0.65,0.3);
+  const b=new THREE.Mesh(bG,M(0x3a5a8a));b.castShadow=true;b.position.y=0.95;G.add(b);
+  // Legs
+  [-0.12,0.12].forEach(x=>{const lG=new THREE.BoxGeometry(0.18,0.55,0.2);
+    const l=new THREE.Mesh(lG,M(0x2a3a5a));l.castShadow=true;l.position.set(x,0.35,0);G.add(l);});
+  // Head
+  const hG=new THREE.BoxGeometry(0.32,0.32,0.32);
+  const h=new THREE.Mesh(hG,M(0xe8c87a));h.castShadow=true;h.position.y=1.5;G.add(h);
+  // Hat
+  const hatG=new THREE.CylinderGeometry(0.28,0.25,0.2,8);
+  const hat=new THREE.Mesh(hatG,M(0x7a4a1a));hat.position.y=1.73;G.add(hat);
+  const brimG=new THREE.CylinderGeometry(0.38,0.38,0.06,12);
+  const brim=new THREE.Mesh(brimG,M(0x7a4a1a));brim.position.y=1.63;G.add(brim);
+  // Arms
+  [-0.33,0.33].forEach(x=>{const aG=new THREE.BoxGeometry(0.15,0.5,0.15);
+    const a=new THREE.Mesh(aG,M(0x3a5a8a));a.castShadow=true;a.position.set(x,0.95,0);G.add(a);});
+  scene.add(G);return G;
+}
+
+// ── PARTICLE SYSTEM ───────────────────────────
+class ParticleSystem{
+  constructor(count,color,size=0.1){
+    this.pool=[];
+    const geo=new THREE.SphereGeometry(size,4,4);
+    for(let i=0;i<count;i++){
+      const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0});
+      const m=new THREE.Mesh(geo,mat.clone());m.visible=false;scene.add(m);
+      this.pool.push({mesh:m,life:0,vel:new THREE.Vector3(),active:false});
+    }
+  }
+  spawn(pos,vel,color){
+    const p=this.pool.find(x=>!x.active);if(!p)return;
+    p.mesh.position.copy(pos);p.vel.copy(vel);p.life=1;p.active=true;p.mesh.visible=true;
+    if(color)p.mesh.material.color.setHex(color);
+  }
+  update(dt){
+    this.pool.forEach(p=>{
+      if(!p.active)return;
+      p.life-=dt*1.8;
+      if(p.life<=0){p.active=false;p.mesh.visible=false;return;}
+      p.mesh.position.addScaledVector(p.vel,dt);
+      p.vel.y-=dt*2.5;
+      p.mesh.material.opacity=p.life*0.6;
+      const s=p.life*0.8+0.2;p.mesh.scale.setScalar(s);
+    });
+  }
+}
+const dustPS=new ParticleSystem(60,0x9b7a30,0.1);
+const smokePS=new ParticleSystem(30,0x555555,0.18);
+const chaff=new ParticleSystem(80,0xd4b040,0.06); // harvest particles
+
+// ── LIGHTS ────────────────────────────────────
+const ambient=new THREE.AmbientLight(0xfff0e0,0.5);scene.add(ambient);
+const sun=new THREE.DirectionalLight(0xfff8e8,1.5);
+sun.position.set(100,150,80);
+sun.castShadow=true;
+sun.shadow.mapSize.set(4096,4096);
+sun.shadow.camera.near=1;sun.shadow.camera.far=500;
+sun.shadow.camera.left=sun.shadow.camera.bottom=-120;
+sun.shadow.camera.right=sun.shadow.camera.top=120;
+sun.shadow.bias=-0.0003;
+scene.add(sun);
+const hemi=new THREE.HemisphereLight(0x87ceeb,0x3d6b1a,0.4);scene.add(hemi);
+
+// Fill light from opposite
+const fill=new THREE.DirectionalLight(0xd0e8ff,0.3);fill.position.set(-80,60,-40);scene.add(fill);
+
+// ── STARS ─────────────────────────────────────
+const starVerts=[];for(let i=0;i<3000;i++)
+  starVerts.push((Math.random()-.5)*800,200+Math.random()*200,(Math.random()-.5)*800);
+const starGeo=new THREE.BufferGeometry();
+starGeo.setAttribute('position',new THREE.Float32BufferAttribute(starVerts,3));
+const stars=new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:0.6}));
+scene.add(stars);
+
+// ── INSTANTIATE ───────────────────────────────
+const tractorMesh=buildTractor3D();
+tractorMesh.position.set(8,0,10);
+
+const harvesterMesh=buildHarvester3D();
+harvesterMesh.position.set(-15,0,8);
+harvesterMesh.rotation.y=Math.PI/2;
+
+const playerMesh=buildPlayer();
+playerMesh.position.set(2,0,2);
+
+// ── GAME STATE ────────────────────────────────
+const GS={
+  // Time / World
+  time:7*60, money:25000, season:'spring',
+  // Control
+  keys:{}, mouseDX:0, mouseDY:0,
+  camYaw:0.3, camPitch:0.35,
+  firstPerson:false,
+  // Player
+  onFoot:true,
+  playerPos:new THREE.Vector3(2,0,2),
+  playerAngle:0,
+  playerSpeed:0,
+  playerLegTimer:0,
+  // Tractor
+  tractorPos:new THREE.Vector3(8,0,10),
+  tractorAngle:0,
+  tractorSpeed:0,
+  tractorRPM:0,
+  tractorFuel:100,
+  tractorEngine:false,
+  tractorGear:'N',
+  // Harvester
+  harvesterPos:new THREE.Vector3(-15,0,8),
+  harvesterAngle:Math.PI/2,
+  harvesterSpeed:0,
+  harvesterRPM:0,
+  harvesterFuel:100,
+  harvesterEngine:false,
+  harvesterGear:'N',
+  harvesterActive:false, // cutting mode
+  // Active vehicle
+  inVehicle:null, // null | 'tractor' | 'harvester'
+  nearVehicle:null,
+  // Fields
+  fields:fieldDefs.map((f,i)=>({...f,idx:i,harvested:false})),
+  // Timers
+  smokeTimer:0,
+  hudTimer:0,
+  harvestTimer:0,
+};
+
+// ── INTERACTION ───────────────────────────────
+function distXZ(a,b){ return Math.sqrt((a.x-b.x)**2+(a.z-b.z)**2); }
+
+function checkNearVehicles(){
+  const pp = GS.onFoot ? GS.playerPos : (GS.inVehicle==='tractor'?GS.tractorPos:GS.harvesterPos);
+  if(!GS.onFoot){GS.nearVehicle=null;return;}
+  const dt=distXZ(pp,GS.tractorPos);
+  const dh=distXZ(pp,GS.harvesterPos);
+  const ENTER_DIST=5.5;
+  if(dt<ENTER_DIST) GS.nearVehicle='tractor';
+  else if(dh<ENTER_DIST) GS.nearVehicle='harvester';
+  else GS.nearVehicle=null;
+}
+
+function enterVehicle(){
+  if(!GS.nearVehicle||!GS.onFoot)return;
+  GS.inVehicle=GS.nearVehicle;
+  GS.onFoot=false;
+  playerMesh.visible=false;
+  if(GS.inVehicle==='tractor'){
+    GS.tractorEngine=true;
+    addLog('🚜 Entrou no Trator John Deere 6M');
+    addLog('🔑 Motor ligado!');
+  } else {
+    GS.harvesterEngine=true;
+    GS.harvesterActive=false;
+    addLog('🌾 Entrou na Colheitadeira New Holland');
+    addLog('🔑 Motor ligado! ESPAÇO = Ativar Corte');
+  }
+}
+
+function exitVehicle(){
+  if(GS.onFoot)return;
+  const vPos = GS.inVehicle==='tractor' ? GS.tractorPos : GS.harvesterPos;
+  const angle = GS.inVehicle==='tractor' ? GS.tractorAngle : GS.harvesterAngle;
+  GS.playerPos.set(vPos.x+Math.sin(angle+Math.PI/2)*3, 0, vPos.z+Math.cos(angle+Math.PI/2)*3);
+  playerMesh.position.copy(GS.playerPos);
+  playerMesh.visible=true;
+  if(GS.inVehicle==='tractor') GS.tractorEngine=false;
+  else { GS.harvesterEngine=false; GS.harvesterActive=false; }
+  addLog('🚶 Saiu do veículo');
+  GS.inVehicle=null;
+  GS.onFoot=true;
+}
+
+// ── INPUT ─────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  GS.keys[e.code]=true;
+  if(e.code==='KeyE'){
+    if(GS.onFoot && GS.nearVehicle) enterVehicle();
+    else if(!GS.onFoot) exitVehicle();
+  }
+  if(e.code==='KeyF') GS.firstPerson=!GS.firstPerson;
+  if(e.code==='KeyR'){
+    if(!GS.onFoot){
+      if(GS.inVehicle==='tractor') GS.tractorEngine=!GS.tractorEngine;
+      else GS.harvesterEngine=!GS.harvesterEngine;
+      addLog(GS.inVehicle==='tractor'?(GS.tractorEngine?'🔑 Motor ligado!':'🔑 Motor desligado'):(GS.harvesterEngine?'🔑 Motor ligado!':'🔑 Motor desligado'));
+    }
+  }
+  if(e.code==='Space'){
+    if(GS.inVehicle==='harvester'){
+      GS.harvesterActive=!GS.harvesterActive;
+      addLog(GS.harvesterActive?'⚙️ Sistema de corte ATIVADO!':'⚙️ Sistema de corte desativado');
+    }
+    e.preventDefault();
+  }
+  if(e.code==='KeyV') GS.firstPerson=!GS.firstPerson;
+});
+document.addEventListener('keyup',e=>GS.keys[e.code]=false);
+canvas.addEventListener('click',()=>canvas.requestPointerLock());
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement===canvas){
+    GS.mouseDX+=e.movementX; GS.mouseDY+=e.movementY;
+  }
+});
+
+// ── MOVEMENT ──────────────────────────────────
+function updateVehicle(dt, posRef, angleRef, speedRef, rpmRef, fuelRef, engineRef, gearRef, maxSpd, setFn){
+  if(!engineRef){
+    setFn('speed', speedRef*(1-Math.min(1,dt*4)));
+    setFn('rpm', Math.max(0, rpmRef - dt*800));
+    setFn('gear','N');
+    return;
+  }
+  const fwd=GS.keys['KeyW']||GS.keys['ArrowUp'];
+  const bwd=GS.keys['KeyS']||GS.keys['ArrowDown'];
+  const lft=GS.keys['KeyA']||GS.keys['ArrowLeft'];
+  const rgt=GS.keys['KeyD']||GS.keys['ArrowRight'];
+  const accel=maxSpd*0.3, drag=maxSpd*0.2;
+  let spd=speedRef;
+  if(fwd)  spd=Math.min(maxSpd, spd+accel*dt);
+  else if(bwd) spd=Math.max(-maxSpd*0.4, spd-accel*dt);
+  else spd*=(1-drag*dt*0.3);
+  if(Math.abs(spd)>0.3){
+    const tr=1.0*(spd>0?1:-1);
+    if(lft) setFn('angle', angleRef+tr*dt);
+    if(rgt) setFn('angle', angleRef-tr*dt);
+  }
+  const mps=spd/3.6;
+  const nx=posRef.x+Math.sin(angleRef+Math.PI)*mps*dt;
+  const nz=posRef.z+Math.cos(angleRef+Math.PI)*mps*dt;
+  setFn('posX',nx); setFn('posZ',nz);
+  setFn('posY',getY(nx,nz));
+  setFn('speed',spd);
+  const tRPM=800+Math.abs(spd)/maxSpd*1800;
+  setFn('rpm', rpmRef+(tRPM-rpmRef)*dt*2);
+  const ag=Math.abs(spd);
+  setFn('gear', ag<0.5?'N':ag<5?'1':ag<10?'2':ag<16?'3':'4');
+  if(spd<-0.5) setFn('gear','R');
+  setFn('fuel', Math.max(0,fuelRef-0.003*dt));
+  // Dust
+  if(Math.abs(spd)>3&&Math.random()<0.25){
+    dustPS.spawn(
+      new THREE.Vector3(posRef.x+(Math.random()-.5)*2,0.15,posRef.z+(Math.random()-.5)*2),
+      new THREE.Vector3((Math.random()-.5)*1.5,0.8+Math.random()*0.8,(Math.random()-.5)*1.5)
+    );
+  }
+}
+
+function updatePlayer(dt){
+  const fwd=GS.keys['KeyW']||GS.keys['ArrowUp'];
+  const bwd=GS.keys['KeyS']||GS.keys['ArrowDown'];
+  const lft=GS.keys['KeyA']||GS.keys['ArrowLeft'];
+  const rgt=GS.keys['KeyD']||GS.keys['ArrowRight'];
+  const maxSpd=10, accel=20, drag=15;
+  if(fwd)  GS.playerSpeed=Math.min(maxSpd, GS.playerSpeed+accel*dt);
+  else if(bwd) GS.playerSpeed=Math.max(-maxSpd*0.5, GS.playerSpeed-accel*dt);
+  else GS.playerSpeed*=(1-drag*dt*0.4);
+  // Turn with camera
+  if(fwd||bwd){
+    if(lft) GS.playerAngle=GS.camYaw+Math.PI*0.05+Math.PI;
+    else if(rgt) GS.playerAngle=GS.camYaw-Math.PI*0.05+Math.PI;
+    else GS.playerAngle=GS.camYaw+Math.PI;
+  }
+  const mps=GS.playerSpeed/3.6;
+  GS.playerPos.x+=Math.sin(GS.playerAngle)*mps*dt;
+  GS.playerPos.z+=Math.cos(GS.playerAngle)*mps*dt;
+  GS.playerPos.y=getY(GS.playerPos.x,GS.playerPos.z);
+  playerMesh.position.copy(GS.playerPos);
+  playerMesh.rotation.y=GS.playerAngle+Math.PI;
+  // Leg animation
+  if(Math.abs(GS.playerSpeed)>0.5){
+    GS.playerLegTimer+=dt*Math.abs(GS.playerSpeed)*0.4;
+    const legAngle=Math.sin(GS.playerLegTimer*5)*0.4;
+    playerMesh.children.forEach((c,i)=>{if(i===1||i===2){
+      c.rotation.x=i===1?legAngle:-legAngle;}});
+  }
+}
+
+// ── SKY SYSTEM ────────────────────────────────
+function lerpColor(c1,c2,t){
+  const r1=(c1>>16)&255,g1=(c1>>8)&255,b1=c1&255;
+  const r2=(c2>>16)&255,g2=(c2>>8)&255,b2=c2&255;
+  return (Math.round(r1+(r2-r1)*t)<<16)|(Math.round(g1+(g2-g1)*t)<<8)|Math.round(b1+(b2-b1)*t);
+}
+function updateSky(mins){
+  const t=mins/1440;
+  let sky,fog2,si,ai;
+  if(t<0.18){sky=0x020510;fog2=0x020510;si=0;ai=0.08;}
+  else if(t<0.27){const p=(t-0.18)/0.09;sky=lerpColor(0x020510,0xff6030,p);fog2=lerpColor(0x020510,0xffaa50,p);si=p*1.0;ai=0.08+p*0.3;}
+  else if(t<0.72){
+    const p=(t-0.27)/0.45;
+    const mid=Math.sin(p*Math.PI);
+    sky=lerpColor(0x5ab0e8,0x87ceeb,mid*0.5);fog2=sky;si=1.2+mid*0.3;ai=0.5+mid*0.1;
+    const sa=(p)*Math.PI;sun.position.set(Math.cos(sa)*130,Math.abs(Math.sin(sa))*160,80);
+  }
+  else if(t<0.82){const p=(t-0.72)/0.10;sky=lerpColor(0x87ceeb,0xff5020,p);fog2=lerpColor(0x87ceeb,0xff7030,p);si=1.2-p*1.2;ai=0.5-p*0.4;}
+  else{sky=0x020510;fog2=0x020510;si=0;ai=0.08;sun.position.set(100,-150,80);}
+  renderer.setClearColor(sky,1);
+  scene.fog.color.setHex(fog2);
+  sun.intensity=Math.max(0,si);
+  ambient.intensity=Math.max(0.08,ai);
+  hemi.intensity=Math.max(0.05,ai*0.7);
+  stars.visible=(t<0.22||t>0.8);
+  stars.material.opacity=t<0.22?Math.min(1,(0.22-t)/0.04):Math.min(1,(t-0.8)/0.04);
+}
+
+// ── HARVEST SYSTEM ────────────────────────────
+function updateHarvest(dt){
+  if(GS.inVehicle!=='harvester'||!GS.harvesterActive||!GS.harvesterEngine)return;
+  GS.harvestTimer+=dt;
+  if(GS.harvestTimer<0.5)return;
+  GS.harvestTimer=0;
+  // Check if over a field
+  const hp=GS.harvesterPos;
+  GS.fields.forEach((f,i)=>{
+    if(f.harvested)return;
+    if(Math.abs(hp.x-f.x)<f.w/2 && Math.abs(hp.z-f.z)<f.d/2 && f.pct>0){
+      f.pct=Math.max(0,f.pct-8);
+      const earned=Math.round(800+Math.random()*400);
+      GS.money+=earned;
+      addLog(`🌾 Colhendo ${f.crop}! +R$${earned}`);
+      // Spawn chaff
+      for(let k=0;k<8;k++){
+        chaff.spawn(
+          new THREE.Vector3(hp.x+(Math.random()-.5)*4,1,hp.z+(Math.random()-.5)*4),
+          new THREE.Vector3((Math.random()-.5)*3,2+Math.random()*2,(Math.random()-.5)*3),
+          0xd4b040
+        );
+      }
+      if(f.pct<=0){f.harvested=true;addLog(`✅ ${f.crop} totalmente colhido! Bom trabalho!`);}
+    }
+  });
+}
+
+// ── CAMERA ────────────────────────────────────
+function updateCamera(){
+  GS.camYaw  -=GS.mouseDX*0.002;
+  GS.camPitch-=GS.mouseDY*0.002;
+  GS.camPitch=Math.max(-0.05,Math.min(1.2,GS.camPitch));
+  GS.mouseDX=GS.mouseDY=0;
+
+  let target, angle;
+  if(GS.onFoot){ target=GS.playerPos; angle=GS.playerAngle; }
+  else if(GS.inVehicle==='tractor'){ target=GS.tractorPos; angle=GS.tractorAngle; }
+  else { target=GS.harvesterPos; angle=GS.harvesterAngle; }
+
+  if(GS.firstPerson){
+    const h = GS.onFoot?1.6:(GS.inVehicle==='tractor'?3.2:4.8);
+    const off=new THREE.Vector3(0,h,0);
+    if(!GS.onFoot){ const qa=new THREE.Quaternion(); qa.setFromAxisAngle(new THREE.Vector3(0,1,0),angle); off.applyQuaternion(qa); }
+    camera.position.copy(target).add(off);
+    const dir=new THREE.Vector3(Math.sin(GS.camYaw+angle-Math.PI+(GS.onFoot?GS.camYaw:0)),Math.tan(GS.camPitch-0.2),Math.cos(GS.camYaw+angle-Math.PI+(GS.onFoot?GS.camYaw:0))).normalize();
+    camera.lookAt(camera.position.clone().add(dir));
+  } else {
+    const dist=GS.onFoot?9:(GS.inVehicle==='tractor'?12:16);
+    const h=GS.onFoot?4:(GS.inVehicle==='tractor'?6:8);
+    const yaw=GS.camYaw;
+    camera.position.set(
+      target.x+Math.sin(yaw)*dist,
+      target.y+h+GS.camPitch*3,
+      target.z+Math.cos(yaw)*dist
+    );
+    camera.lookAt(target.x,target.y+(GS.onFoot?1:2.5),target.z);
+  }
+}
+
+// ── MESH SYNC ─────────────────────────────────
+function syncMeshes(){
+  tractorMesh.position.copy(GS.tractorPos);
+  tractorMesh.rotation.y=GS.tractorAngle;
+  harvesterMesh.position.copy(GS.harvesterPos);
+  harvesterMesh.rotation.y=GS.harvesterAngle;
+  if(GS.onFoot) playerMesh.position.copy(GS.playerPos);
+}
+
+// ── HUD UPDATE ────────────────────────────────
+let hudT=0;
+function updateHUD(dt){
+  hudT+=dt; if(hudT<0.08)return; hudT=0;
+  GS.time=(GS.time+dt*3)%1440;
+  const h=String(Math.floor(GS.time/60)).padStart(2,'0');
+  const m=String(Math.floor(GS.time%60)).padStart(2,'0');
+  document.getElementById('h-time').textContent=h+':'+m;
+  document.getElementById('h-money').textContent=GS.money.toLocaleString('pt-BR');
+
+  const spd=GS.onFoot?GS.playerSpeed:(GS.inVehicle==='tractor'?GS.tractorSpeed:GS.harvesterSpeed);
+  const rpm=GS.onFoot?0:(GS.inVehicle==='tractor'?GS.tractorRPM:GS.harvesterRPM);
+  const fuel=GS.onFoot?100:(GS.inVehicle==='tractor'?GS.tractorFuel:GS.harvesterFuel);
+  const gear=GS.onFoot?'—':(GS.inVehicle==='tractor'?GS.tractorGear:GS.harvesterGear);
+  const eng=GS.onFoot?false:(GS.inVehicle==='tractor'?GS.tractorEngine:GS.harvesterEngine);
+
+  document.getElementById('h-spd').textContent=Math.abs(spd).toFixed(1);
+  document.getElementById('h-rpm').textContent=GS.onFoot?'—':Math.round(rpm)+' RPM';
+  document.getElementById('h-fuel').textContent=GS.onFoot?'—':fuel.toFixed(0)+'%';
+  document.getElementById('h-gear').textContent=gear;
+  document.getElementById('h-engine').textContent=eng?'✅ Ligado':'❌ Desligado';
+  document.getElementById('b-spd').style.width=Math.min(100,Math.abs(spd)/25*100)+'%';
+  document.getElementById('b-rpm').style.width=GS.onFoot?'0%':Math.min(100,(rpm-800)/1800*100)+'%';
+  document.getElementById('b-fuel').style.width=fuel+'%';
+
+  document.getElementById('i-mode').textContent=GS.onFoot?'🚶 A Pé':(GS.inVehicle==='tractor'?'🚜 Trator':'🌾 Colheitadeira');
+  document.getElementById('i-veh').textContent=GS.onFoot?'—':(GS.inVehicle==='tractor'?'John Deere 6M':'New Holland CR');
+  document.getElementById('i-impl').textContent=GS.onFoot?'—':(GS.inVehicle==='tractor'?'Plantadeira':'Plataforma Corte');
+
+  const seasons={spring:'🌱 Primavera',summer:'☀️ Verão',autumn:'🍂 Outono',winter:'❄️ Inverno'};
+  document.getElementById('h-season').textContent=seasons[GS.season];
+  const tt=GS.time/1440;
+  document.getElementById('h-weather').textContent=tt<0.22||tt>0.8?'🌙 Noite':tt<0.27?'🌅 Amanhecer':'☀️ Sol';
+
+  // Interact prompt
+  const prompt=document.getElementById('interact-prompt');
+  if(GS.onFoot&&GS.nearVehicle){
+    prompt.style.display='block';
+    prompt.innerHTML=`🔑 Pressione <b>[E]</b> para entrar no ${GS.nearVehicle==='tractor'?'Trator 🚜':'Colheitadeira 🌾'}`;
+  } else { prompt.style.display='none'; }
+
+  // Vehicle indicator
+  const vi=document.getElementById('vehicle-indicator');
+  if(GS.onFoot) vi.innerHTML='Personagem a pé &nbsp;|&nbsp; <b>E</b> perto do veículo para entrar';
+  else vi.innerHTML=`Pilotando: <b>${GS.inVehicle==='tractor'?'🚜 Trator John Deere 6M':'🌾 Colheitadeira New Holland'}</b> &nbsp;|&nbsp; <b>E</b> para sair${GS.inVehicle==='harvester'?' &nbsp;|&nbsp; <b>ESPAÇO</b> '+( GS.harvesterActive?'<span style="color:#5fc95f">CORTE ATIVO</span>':'Ativar Corte'):''}`;
+
+  // Active field info
+  const af=GS.fields[0];
+  document.getElementById('i-field').textContent=`Campo 1`;
+  document.getElementById('i-crop').textContent=af.crop+(af.pct>=100?' 🌿':af.pct>50?' 🌱':' 🌾');
+  document.getElementById('i-prog').textContent=af.pct+'%';
+}
+
+// ── LOG ───────────────────────────────────────
+function addLog(msg){
+  const el=document.createElement('div');el.className='log-e';el.textContent=msg;
+  const log=document.getElementById('action-log');log.appendChild(el);
+  setTimeout(()=>el.remove(),4200);
+}
+
+// ── SMOKE EMITTER ─────────────────────────────
+function emitSmoke(pos,ang,dt,engine){
+  if(!engine)return;
+  GS.smokeTimer+=dt;
+  if(GS.smokeTimer<0.12)return;
+  GS.smokeTimer=0;
+  const ep=new THREE.Vector3(0.7,3.8,-1.8).applyAxisAngle(new THREE.Vector3(0,1,0),ang).add(pos);
+  smokePS.spawn(ep,new THREE.Vector3((Math.random()-.5)*0.3,1.2+Math.random()*0.5,(Math.random()-.5)*0.3),0x444444);
+}
+
+// ── WIND ANIMATION ────────────────────────────
+let windT=0;
+function animateWind(dt){
+  windT+=dt;
+  cropMeshes.forEach((cm,i)=>{
+    const dummy=new THREE.Object3D();
+    const count=cm.count;
+    for(let j=0;j<Math.min(count,5);j++){
+      cm.getMatrixAt(j,dummy.matrix);
+      dummy.matrix.decompose(dummy.position,dummy.quaternion,dummy.scale);
+      dummy.rotation.z=Math.sin(windT*1.5+j*0.5)*0.06;
+      dummy.updateMatrix();
+      cm.setMatrixAt(j,dummy.matrix);
+    }
+    cm.instanceMatrix.needsUpdate=true;
+  });
+}
+
+// ── TRACTOR WHEEL ANIM ────────────────────────
+let wheelRot=0;
+function animateWheels(dt){
+  const spd=GS.inVehicle==='tractor'?GS.tractorSpeed:(GS.inVehicle==='harvester'?GS.harvesterSpeed:0);
+  wheelRot+=spd*dt*0.5;
+  const target=GS.inVehicle==='tractor'?tractorMesh:harvesterMesh;
+  target.traverse(c=>{
+    if(c.isMesh&&c.geometry&&c.geometry.type==='CylinderGeometry'){
+      if(c.rotation.z===Math.PI/2){
+        c.rotation.x=wheelRot;
+      }
+    }
+  });
+  // Reel spin on harvester
+  if(GS.harvesterActive){
+    harvesterMesh.traverse(c=>{
+      if(c.isMesh&&c.geometry&&c.geometry.type==='CylinderGeometry'&&
+         Math.abs(c.position.z+4.2)<0.5){
+        c.rotation.z+=dt*3;
+      }
+    });
+  }
+}
+
+// ── REEL ANIM ─────────────────────────────────
+// (included in animateWheels above)
+
+// ── MAIN LOOP ─────────────────────────────────
+let lastT=performance.now();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  const dt=Math.min((now-lastT)/1000,0.05);
+  lastT=now;
+
+  // Update player or vehicle
+  if(GS.onFoot){
+    updatePlayer(dt);
+  } else if(GS.inVehicle==='tractor'){
+    updateVehicle(dt,
+      GS.tractorPos, GS.tractorAngle, GS.tractorSpeed, GS.tractorRPM, GS.tractorFuel,
+      GS.tractorEngine, GS.tractorGear, 22,
+      (k,v)=>{
+        if(k==='speed') GS.tractorSpeed=v;
+        else if(k==='rpm') GS.tractorRPM=v;
+        else if(k==='fuel') GS.tractorFuel=v;
+        else if(k==='gear') GS.tractorGear=v;
+        else if(k==='angle') GS.tractorAngle=v;
+        else if(k==='posX') GS.tractorPos.x=v;
+        else if(k==='posZ') GS.tractorPos.z=v;
+        else if(k==='posY') GS.tractorPos.y=v;
+      }
+    );
+    emitSmoke(GS.tractorPos,GS.tractorAngle,dt,GS.tractorEngine);
+  } else {
+    updateVehicle(dt,
+      GS.harvesterPos, GS.harvesterAngle, GS.harvesterSpeed, GS.harvesterRPM, GS.harvesterFuel,
+      GS.harvesterEngine, GS.harvesterGear, 16,
+      (k,v)=>{
+        if(k==='speed') GS.harvesterSpeed=v;
+        else if(k==='rpm') GS.harvesterRPM=v;
+        else if(k==='fuel') GS.harvesterFuel=v;
+        else if(k==='gear') GS.harvesterGear=v;
+        else if(k==='angle') GS.harvesterAngle=v;
+        else if(k==='posX') GS.harvesterPos.x=v;
+        else if(k==='posZ') GS.harvesterPos.z=v;
+        else if(k==='posY') GS.harvesterPos.y=v;
+      }
+    );
+    emitSmoke(GS.harvesterPos,GS.harvesterAngle,dt,GS.harvesterEngine);
+    updateHarvest(dt);
+  }
+
+  checkNearVehicles();
+  updateCamera();
+  syncMeshes();
+  updateSky(GS.time);
+  dustPS.update(dt);
+  smokePS.update(dt);
+  chaff.update(dt);
+  animateWheels(dt);
+  // animateWind(dt); // disabled for perf
+  updateHUD(dt);
+
+  renderer.render(scene,camera);
+}
+
+// ── RESIZE ────────────────────────────────────
+window.addEventListener('resize',()=>{
+  renderer.setSize(innerWidth,innerHeight);
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// ── BOOT ──────────────────────────────────────
+let ls=0;
+const lInterval=setInterval(()=>{
+  ls++;
+  document.getElementById('lb').style.width=(ls/7*100)+'%';
+  const msgs=['Gerando terreno...','Plantando vegetação...','Construindo celeiro...','Modelando trator...','Construindo colheitadeira...','Carregando física...','Iniciando...'];
+  if(ls<=6) document.getElementById('lt').textContent=msgs[ls];
+  if(ls>=7) clearInterval(lInterval);
+},200);
+
+setTimeout(()=>{
+  const ld=document.getElementById('loading');
+  ld.style.opacity='0';setTimeout(()=>ld.style.display='none',1000);
+  addLog('🌾 AgroSim Brasil 2.0 carregado!');
+  addLog('🚶 Use WASD para andar. Chegue perto de um veículo e pressione E');
+  addLog('🚜 Trator perto de você! Pressione E para entrar');
+  animate();
+},1700);
+
+// Set initial first-person look direction
+GS.camYaw = 3.3;
+</script>
+</body>
+</html>
